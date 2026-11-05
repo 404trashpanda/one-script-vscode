@@ -1,0 +1,19 @@
+# Runs on every push: catches syntax errors before anyone downloads a broken script.
+name: check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: ShellCheck
+        run: shellcheck -S warning setup-workspace.sh setup-workspace-mac.sh
+      - name: PowerShell syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile("$PWD/setup-workspace.ps1", [ref]$null, [ref]$errors)
+          if ($errors) { $errors; exit 1 }
+      - name: PowerShell script is pure ASCII
+        run: |
+          if grep -nP '[^\x00-\x7F]' setup-workspace.ps1; then exit 1; fi
