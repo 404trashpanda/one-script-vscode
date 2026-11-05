@@ -1953,7 +1953,7 @@ Better: update macOS first. Continue anyway?" "Continue" || cancelled
 
 # Before the password: internet, clock, blocked servers, room.
 check_internet() {
-    local try=0 page date_h now server_time problem u blocked=""
+    local try=0 page date_h age now server_time problem u blocked=""
     while :; do
         problem=""
         if ! page=$(curl -sS -i --max-time 12 http://captive.apple.com/hotspot-detect.html 2>/dev/null); then
@@ -1961,9 +1961,15 @@ check_internet() {
         elif ! grep -q Success <<< "$page"; then
             problem="A login page is answering instead of the internet (hotel, school, public Wi-Fi?): log in with the browser."
         else
+            # Apple's CDN answers from its cache: Date is when the page was cached (often a day ago), Age the seconds since.
             date_h=$(tr -d '\r' <<< "$page" | sed -n 's/^[Dd]ate: //p' | head -1)
+            age=$(tr -d '\r' <<< "$page" | sed -n 's/^[Aa]ge: *\([0-9][0-9]*\).*/\1/p' | head -1)
             now=$(date +%s)
-            server_time=$(date -j -u -f '%a, %d %b %Y %H:%M:%S GMT' "$date_h" +%s 2>/dev/null || echo "$now")
+            if server_time=$(LC_ALL=C date -j -u -f '%a, %d %b %Y %H:%M:%S GMT' "$date_h" +%s 2>/dev/null); then
+                server_time=$((server_time + ${age:-0}))
+            else
+                server_time=$now
+            fi
             if (( (now > server_time ? now - server_time : server_time - now) > 7200 )); then
                 problem="This Mac's clock is wrong (it says $(date '+%Y-%m-%d %H:%M')), so secure downloads would fail. Set it in System Settings > General > Date & Time."
             fi
